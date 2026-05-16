@@ -1,8 +1,7 @@
 import mapboxgl from 'https://cdn.jsdelivr.net/npm/mapbox-gl@2.15.0/+esm';
 import * as d3 from 'https://cdn.jsdelivr.net/npm/d3@7.9.0/+esm';
 
-// ── Global variables ──────────────────────────────────────────
-mapboxgl.accessToken = 'YOUR_pk_TOKEN_HERE';
+mapboxgl.accessToken = 'pk.eyJ1IjoibXBrY2IyMSIsImEiOiJjbXA4dWEwMGkwNXJmMnBwcmxpamVyZXQwIn0.lfnXScVTAKmYXxThynE8Eg';
 
 const map = new mapboxgl.Map({
   container: 'map',
@@ -15,8 +14,6 @@ const map = new mapboxgl.Map({
 
 let departuresByMinute = Array.from({ length: 1440 }, () => []);
 let arrivalsByMinute   = Array.from({ length: 1440 }, () => []);
-
-// ── Helper functions (global so map events can access them) ───
 
 function getCoords(station) {
   const point = new mapboxgl.LngLat(+station.Long, +station.Lat);
@@ -56,18 +53,16 @@ function computeStationTraffic(stations, timeFilter = -1) {
   );
   return stations.map(station => {
     const id = station.short_name;
-    station.arrivals   = arrivals.get(id)   ?? 0;
-    station.departures = departures.get(id) ?? 0;
+    station.arrivals     = arrivals.get(id)   ?? 0;
+    station.departures   = departures.get(id) ?? 0;
     station.totalTraffic = station.arrivals + station.departures;
     return station;
   });
 }
 
-// ── Map load ──────────────────────────────────────────────────
-
 map.on('load', async () => {
 
-  // Bike lanes — Boston
+  // Boston bike lanes
   map.addSource('boston_route', {
     type: 'geojson',
     data: 'https://bostonopendata-boston.opendata.arcgis.com/datasets/boston::existing-bike-network-2022.geojson',
@@ -79,7 +74,7 @@ map.on('load', async () => {
     paint: { 'line-color': '#32D400', 'line-width': 3, 'line-opacity': 0.4 },
   });
 
-  // Bike lanes — Cambridge
+  // Cambridge bike lanes
   map.addSource('cambridge_route', {
     type: 'geojson',
     data: 'https://raw.githubusercontent.com/cambridgegis/cambridgegis_data/main/Recreation/Bike_Facilities/RECREATION_BikeFacilities.geojson',
@@ -97,15 +92,13 @@ map.on('load', async () => {
   let stations = jsonData.data.stations;
 
   // Trips
-  let trips = await d3.csv(
+  await d3.csv(
     'https://dsc106.com/labs/lab07/data/bluebikes-traffic-2024-03.csv',
     trip => {
       trip.started_at = new Date(trip.started_at);
       trip.ended_at   = new Date(trip.ended_at);
-      const startMin  = minutesSinceMidnight(trip.started_at);
-      const endMin    = minutesSinceMidnight(trip.ended_at);
-      departuresByMinute[startMin].push(trip);
-      arrivalsByMinute[endMin].push(trip);
+      departuresByMinute[minutesSinceMidnight(trip.started_at)].push(trip);
+      arrivalsByMinute[minutesSinceMidnight(trip.ended_at)].push(trip);
       return trip;
     },
   );
@@ -118,7 +111,6 @@ map.on('load', async () => {
 
   const stationFlow = d3.scaleQuantize().domain([0, 1]).range([0, 0.5, 1]);
 
-  // Draw circles
   const circles = svg
     .selectAll('circle')
     .data(stations, d => d.short_name)
@@ -130,12 +122,10 @@ map.on('load', async () => {
     .attr('fill-opacity', 0.6)
     .style('--departure-ratio', d => stationFlow(d.departures / d.totalTraffic))
     .each(function(d) {
-      d3.select(this)
-        .append('title')
+      d3.select(this).append('title')
         .text(`${d.totalTraffic} trips (${d.departures} departures, ${d.arrivals} arrivals)`);
     });
 
-  // Keep circles aligned with map
   function updatePositions() {
     circles
       .attr('cx', d => getCoords(d).cx)
@@ -148,7 +138,6 @@ map.on('load', async () => {
   map.on('resize',  updatePositions);
   map.on('moveend', updatePositions);
 
-  // Slider
   const timeSlider   = document.getElementById('time-slider');
   const selectedTime = document.getElementById('selected-time');
   const anyTimeLabel = document.getElementById('any-time');
